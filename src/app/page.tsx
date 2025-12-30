@@ -1,66 +1,164 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+import { useState } from 'react';
+import {
+  Container,
+  Box,
+  AppBar,
+  Toolbar,
+  Typography,
+  Tabs,
+  Tab,
+  Paper,
+} from '@mui/material';
+import WifiIcon from '@mui/icons-material/Wifi';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import PeopleIcon from '@mui/icons-material/People';
+import CustomerForm from './components/CustomerForm';
+import PackageSelection from './components/PackageSelection';
+import PaymentPlan from './components/PaymentPlan';
+import SubscriptionSummary from './components/SubscriptionSummary';
+import CustomerManagement from './components/CustomerManagement';
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div role="tabpanel" hidden={value !== index} {...other}>
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+    </div>
+  );
+}
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [currentCustomer, setCurrentCustomer] = useState<any>(null);
+  const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  const [paymentCycle, setPaymentCycle] = useState<string>('monthly');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+    if (newValue === 0) {
+      handleReset();
+    }
+  };
+
+  const handleCustomerSubmit = (customer: any) => {
+    setCurrentCustomer(customer);
+    setCurrentStep(1);
+  };
+
+  const handlePackageSelection = (packages: string[]) => {
+    setSelectedPackages(packages);
+    setCurrentStep(2);
+  };
+
+  const handlePaymentPlanSelect = (cycle: string) => {
+    setPaymentCycle(cycle);
+    setCurrentStep(3);
+  };
+
+  const handleConfirmSubscription = () => {
+    setActiveTab(1);
+    setRefreshKey((prev) => prev + 1);
+    handleReset();
+  };
+
+  const handleReset = () => {
+    setCurrentStep(0);
+    setCurrentCustomer(null);
+    setSelectedPackages([]);
+    setPaymentCycle('monthly');
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      {/* Header */}
+      <AppBar position="static" elevation={2}>
+        <Toolbar>
+          <WifiIcon sx={{ mr: 2, fontSize: 32 }} />
+          <Box>
+            <Typography variant="h6" component="div">
+              SwiftConnect WiFi
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>
+              WiFi Services Management System
+            </Typography>
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      {/* Main Content */}
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+        <Paper elevation={3}>
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            centered
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
           >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            <Tab icon={<PersonAddIcon />} label="New Subscription" />
+            <Tab icon={<PeopleIcon />} label="Customer Management" />
+          </Tabs>
+
+          <TabPanel value={activeTab} index={0}>
+            {currentStep === 0 && (
+              <CustomerForm onSubmit={handleCustomerSubmit} />
+            )}
+            {currentStep === 1 && (
+              <PackageSelection
+                selectedPackages={selectedPackages}
+                onNext={handlePackageSelection}
+                onBack={() => setCurrentStep(0)}
+              />
+            )}
+            {currentStep === 2 && (
+              <PaymentPlan
+                packageIds={selectedPackages}
+                paymentCycle={paymentCycle}
+                onNext={handlePaymentPlanSelect}
+                onBack={() => setCurrentStep(1)}
+              />
+            )}
+            {currentStep === 3 && currentCustomer && (
+              <SubscriptionSummary
+                customer={currentCustomer}
+                packageIds={selectedPackages}
+                paymentCycle={paymentCycle}
+                onConfirm={handleConfirmSubscription}
+                onBack={() => setCurrentStep(2)}
+              />
+            )}
+          </TabPanel>
+
+          <TabPanel value={activeTab} index={1}>
+            <CustomerManagement key={refreshKey} />
+          </TabPanel>
+        </Paper>
+      </Container>
+
+      {/* Footer */}
+      <Box
+        component="footer"
+        sx={{
+          py: 3,
+          px: 2,
+          mt: 'auto',
+          bgcolor: 'background.paper',
+          borderTop: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <Typography variant="body2" color="text.secondary" align="center">
+          © 2025 SwiftConnect WiFi Management System. All rights reserved.
+        </Typography>
+      </Box>
+    </Box>
   );
 }
