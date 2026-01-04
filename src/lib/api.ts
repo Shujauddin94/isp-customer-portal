@@ -42,10 +42,13 @@ export interface Subscription {
 export interface Payment {
     id: string;
     subscriptionId: string;
-    amount: number;
-    status: 'pending' | 'paid' | 'overdue' | 'failed';
+    totalAmount: number;
+    paidAmount: number;
+    pendingAmount: number;
+    penaltyAmount: number;
+    status: 'pending' | 'paid' | 'overdue' | 'failed' | 'partially_paid';
     dueDate: string;
-    paidDate: string | null;
+    paidAt: string | null;
     transactionId: string | null;
 }
 
@@ -58,6 +61,11 @@ export const api = {
 
     // Packages
     getPackages: () => axios.get<Package[]>(`${API_URL}/packages`),
+    createPackage: (data: Partial<Package>) =>
+        axios.post<Package>(`${API_URL}/packages`, data),
+    updatePackage: (id: string, data: Partial<Package>) =>
+        axios.patch<Package>(`${API_URL}/packages/${id}`, data),
+    deletePackage: (id: string) => axios.delete(`${API_URL}/packages/${id}`),
 
     // Subscriptions
     createSubscription: (data: {
@@ -65,8 +73,12 @@ export const api = {
         packageId: string;
         paymentCycle: string;
     }) => axios.post<Subscription>(`${API_URL}/subscriptions`, data),
+    updateSubscription: (id: string, data: Partial<Subscription>) =>
+        axios.patch<Subscription>(`${API_URL}/subscriptions/${id}`, data),
+    deleteSubscription: (id: string) =>
+        axios.delete(`${API_URL}/subscriptions/${id}`),
 
     // Payments
-    markPaymentAsPaid: (id: string) =>
-        axios.patch<Payment>(`${API_URL}/payments/${id}/mark-paid`),
+    recordPayment: (id: string, amount: number) =>
+        axios.patch<Payment>(`${API_URL}/payments/${id}/pay`, { amount }),
 };

@@ -32,7 +32,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import ErrorIcon from '@mui/icons-material/Error';
-import { api, Customer, Payment } from '../../lib/api';
+import EditIcon from '@mui/icons-material/Edit';
+import { api, Customer, Payment, Package } from '../../lib/api';
 import { format } from 'date-fns';
 
 export default function CustomerManagement() {
@@ -42,10 +43,31 @@ export default function CustomerManagement() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+    const [addSubDialogOpen, setAddSubDialogOpen] = useState(false);
+    const [packages, setPackages] = useState<Package[]>([]);
+    const [selectedPkgId, setSelectedPkgId] = useState('');
+    const [selectedCycle, setSelectedCycle] = useState('monthly');
+
+    // Phase 2 State
+    const [editSubDialogOpen, setEditSubDialogOpen] = useState(false);
+    const [selectedSub, setSelectedSub] = useState<Subscription | null>(null);
+    const [recordPaymentDialogOpen, setRecordPaymentDialogOpen] = useState(false);
+    const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+    const [paymentAmount, setPaymentAmount] = useState('');
 
     useEffect(() => {
         loadCustomers();
+        loadPackages();
     }, []);
+
+    const loadPackages = async () => {
+        try {
+            const response = await api.getPackages();
+            setPackages(response.data);
+        } catch (error) {
+            console.error('Error loading packages:', error);
+        }
+    };
 
     const loadCustomers = async () => {
         try {
@@ -81,20 +103,6 @@ export default function CustomerManagement() {
         setDialogOpen(true);
     };
 
-    const handleMarkAsPaid = async (paymentId: string) => {
-        try {
-            await api.markPaymentAsPaid(paymentId);
-            loadCustomers();
-            if (selectedCustomer) {
-                const updated = await api.getCustomers();
-                const updatedCustomer = updated.data.find(c => c.id === selectedCustomer.id);
-                if (updatedCustomer) setSelectedCustomer(updatedCustomer);
-            }
-        } catch (error) {
-            console.error('Error marking payment as paid:', error);
-        }
-    };
-
     const getCustomerStatus = (customer: Customer) => {
         if (!customer.subscriptions || customer.subscriptions.length === 0) {
             return { label: 'No Subscription', color: 'default' as const };
@@ -109,27 +117,126 @@ export default function CustomerManagement() {
 
         if (hasOverdue) return { label: 'Overdue', color: 'error' as const };
         if (hasPending) return { label: 'Pending', color: 'warning' as const };
-        return { label: 'All Paid', color: 'success' as const };
+        return { label: 'Active', color: 'success' as const };
     };
 
     const getTotalDue = (customer: Customer): number => {
         if (!customer.subscriptions) return 0;
         return customer.subscriptions
             .flatMap(sub => sub.payments || [])
-            .filter(p => p.status === 'pending' || p.status === 'overdue')
-            .reduce((sum, p) => sum + Number(p.amount), 0);
+            .filter(p => p.status !== 'paid')
+            .reduce((sum, p) => sum + Number(p.pendingAmount || 0), 0);
     };
 
     const getPaymentIcon = (status: string) => {
         switch (status) {
             case 'paid':
                 return <CheckCircleIcon color="success" />;
+            case 'partially_paid':
+                return <PendingIcon color="info" />;
             case 'pending':
                 return <PendingIcon color="warning" />;
             case 'overdue':
                 return <ErrorIcon color="error" />;
             default:
                 return <PendingIcon />;
+        }
+    };
+
+    const handleRecordPayment = async () => {
+        if (!selectedPayment || !paymentAmount || isNaN(Number(paymentAmount))) return;
+
+        try {
+            await api.recordPayment(selectedPayment.id, Number(paymentAmount));
+            setRecordPaymentDialogOpen(false);
+            setPaymentAmount('');
+            loadCustomers();
+            if (selectedCustomer) {
+                const updated = await api.getCustomers();
+                const updatedCustomer = updated.data.find(c => c.id === selectedCustomer.id);
+                if (updatedCustomer) setSelectedCustomer(updatedCustomer);
+            }
+        } catch (error) {
+            console.error('Error recording payment:', error);
+        }
+    };
+
+    const handleOpenPaymentDialog = (payment: Payment) => {
+        setSelectedPayment(payment);
+        setPaymentAmount(payment.pendingAmount.toString());
+        setRecordPaymentDialogOpen(true);
+    };
+
+    const handleOpenEditSubDialog = (sub: Subscription) => {
+        setSelectedSub(sub);
+        setSelectedPkgId(sub.packageId);
+        setSelectedCycle(sub.paymentCycle);
+        setEditSubDialogOpen(true);
+    };
+
+    const handleEditSubscription = async () => {
+        if (!selectedSub) return;
+        try {
+            await api.updateSubscription(selectedSub.id, {
+                packageId: selectedPkgId,
+                paymentCycle: selectedCycle as any
+            });
+            setEditSubDialogOpen(false);
+            loadCustomers();
+            if (selectedCustomer) {
+                const updated = await api.getCustomers();
+                const updatedCustomer = updated.data.find(c => c.id === selectedCustomer.id);
+                if (updatedCustomer) setSelectedCustomer(updatedCustomer);
+            }
+        } catch (error) {
+            console.error('Error editing subscription:', error);
+        }
+    };
+
+    const handleDeleteSubscription = async (subId: string) => {
+        if (!confirm('Are you sure you want to delete this subscription?')) return;
+        try {
+            await api.deleteSubscription(subId);
+            loadCustomers();
+            if (selectedCustomer) {
+                const updated = await api.getCustomers();
+                const updatedCustomer = updated.data.find(c => c.id === selectedCustomer.id);
+                if (updatedCustomer) setSelectedCustomer(updatedCustomer);
+            }
+        } catch (error) {
+            console.error('Error deleting subscription:', error);
+        }
+    };
+
+    const handleAddSubscription = async () => {
+        if (!selectedCustomer || !selectedPkgId) return;
+        try {
+            await api.createSubscription({
+                customerId: selectedCustomer.id,
+                packageId: selectedPkgId,
+                paymentCycle: selectedCycle
+            });
+            setAddSubDialogOpen(false);
+            loadCustomers();
+            const updated = await api.getCustomers();
+            const updatedCustomer = updated.data.find(c => c.id === selectedCustomer.id);
+            if (updatedCustomer) setSelectedCustomer(updatedCustomer);
+        } catch (error) {
+            console.error('Error adding subscription:', error);
+        }
+    };
+
+    const handleUpdateSubscriptionStatus = async (subId: string, status: string) => {
+        try {
+            await api.updateSubscription(subId, { status: status as any });
+            loadCustomers();
+            if (selectedCustomer) {
+                const updated = await api.getCustomers();
+                const updatedCustomer = updated.data.find(c => c.id === selectedCustomer.id);
+                if (updatedCustomer) setSelectedCustomer(updatedCustomer);
+            }
+        } catch (error) {
+            console.error('Error updating status:', error);
         }
     };
 
@@ -214,7 +321,7 @@ export default function CustomerManagement() {
                                                 <TableCell align="center">
                                                     <Typography variant="body2">
                                                         {customer.subscriptions?.[0]?.nextDueDate
-                                                            ? format(new Date(customer.subscriptions[0].nextDueDate), 'MMM dd, HH:mm')
+                                                            ? format(new Date(customer.subscriptions[0].nextDueDate), 'MMM dd, HH:mm:ss')
                                                             : '-'}
                                                     </Typography>
                                                 </TableCell>
@@ -298,9 +405,18 @@ export default function CustomerManagement() {
                             </Card>
 
                             {/* Subscriptions */}
-                            <Typography variant="h6" gutterBottom>
-                                Subscriptions ({selectedCustomer.subscriptions?.length || 0})
-                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                <Typography variant="h6">
+                                    Subscriptions ({selectedCustomer.subscriptions?.length || 0})
+                                </Typography>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => setAddSubDialogOpen(true)}
+                                >
+                                    Add New Subscription
+                                </Button>
+                            </Box>
 
                             {selectedCustomer.subscriptions?.map((subscription) => (
                                 <Card key={subscription.id} sx={{ mb: 2 }}>
@@ -309,7 +425,21 @@ export default function CustomerManagement() {
                                             <Typography variant="h6">
                                                 {subscription.package?.name} - {subscription.package?.speed}
                                             </Typography>
-                                            <Chip label={subscription.status} color="primary" size="small" />
+                                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                                <TextField
+                                                    select
+                                                    size="small"
+                                                    value={subscription.status}
+                                                    onChange={(e) => handleUpdateSubscriptionStatus(subscription.id, e.target.value)}
+                                                    SelectProps={{ native: true }}
+                                                    sx={{ width: 120 }}
+                                                >
+                                                    <option value="active">Active</option>
+                                                    <option value="suspended">Suspended</option>
+                                                    <option value="cancelled">Cancelled</option>
+                                                </TextField>
+                                                <Chip label={subscription.status} color={subscription.status === 'active' ? 'success' : 'default'} size="small" />
+                                            </Box>
                                         </Box>
 
                                         <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -332,10 +462,29 @@ export default function CustomerManagement() {
                                                     Next Due
                                                 </Typography>
                                                 <Typography>
-                                                    {format(new Date(subscription.nextDueDate), 'MMM dd, yyyy HH:mm')}
+                                                    {format(new Date(subscription.nextDueDate), 'MMM dd, yyyy HH:mm:ss')}
                                                 </Typography>
                                             </Grid>
                                         </Grid>
+
+                                        <Box sx={{ mt: 1, mb: 1, display: 'flex', gap: 1 }}>
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                startIcon={<EditIcon />}
+                                                onClick={() => handleOpenEditSubDialog(subscription)}
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                color="error"
+                                                startIcon={<DeleteIcon />}
+                                                onClick={() => handleDeleteSubscription(subscription.id)}
+                                            >
+                                                Delete
+                                            </Button>
+                                        </Box>
 
                                         <Divider sx={{ my: 2 }} />
 
@@ -359,23 +508,40 @@ export default function CustomerManagement() {
                                                                 <Button
                                                                     size="small"
                                                                     variant="contained"
-                                                                    onClick={() => handleMarkAsPaid(payment.id)}
+                                                                    onClick={() => handleOpenPaymentDialog(payment)}
                                                                 >
-                                                                    Mark Paid
+                                                                    Pay
                                                                 </Button>
                                                             )
                                                         }
                                                     >
                                                         <Box sx={{ mr: 2 }}>{getPaymentIcon(payment.status)}</Box>
                                                         <ListItemText
-                                                            primary={`$${Number(payment.amount).toFixed(2)} - ${payment.status}`}
+                                                            primary={
+                                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', pr: 4 }}>
+                                                                    <Typography variant="body2" fontWeight="bold">
+                                                                        Total Due: ${Number(Number(payment.totalAmount) + Number(payment.penaltyAmount || 0)).toFixed(2)}
+                                                                    </Typography>
+                                                                    <Typography variant="body2" color="text.secondary">
+                                                                        Status: {payment.status.replace('_', ' ')}
+                                                                    </Typography>
+                                                                </Box>
+                                                            }
                                                             secondary={
-                                                                <>
-                                                                    Due: {format(new Date(payment.dueDate), 'MMM dd, yyyy HH:mm')}
-                                                                    {payment.paidDate && (
-                                                                        <> | Paid: {format(new Date(payment.paidDate), 'MMM dd, yyyy HH:mm')}</>
-                                                                    )}
-                                                                </>
+                                                                <Box component="div">
+                                                                    <Typography variant="caption" display="block">
+                                                                        Base: ${Number(payment.totalAmount).toFixed(2)} |
+                                                                        Penalty: ${Number(payment.penaltyAmount).toFixed(2)} |
+                                                                        Paid: ${Number(payment.paidAmount).toFixed(2)} |
+                                                                        Pending: ${Number(payment.pendingAmount).toFixed(2)}
+                                                                    </Typography>
+                                                                    <Typography variant="caption" display="block">
+                                                                        Due: {format(new Date(payment.dueDate), 'MMM dd, yyyy HH:mm:ss')}
+                                                                        {payment.paidAt && (
+                                                                            <> | Last Payment: {format(new Date(payment.paidAt), 'MMM dd, yyyy HH:mm:ss')}</>
+                                                                        )}
+                                                                    </Typography>
+                                                                </Box>
                                                             }
                                                         />
                                                     </ListItem>
@@ -397,6 +563,58 @@ export default function CustomerManagement() {
                 </DialogActions>
             </Dialog>
 
+            {/* Add Subscription Dialog */}
+            <Dialog
+                open={addSubDialogOpen}
+                onClose={() => setAddSubDialogOpen(false)}
+            >
+                <DialogTitle>Add New Subscription</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 300 }}>
+                        <TextField
+                            select
+                            label="Select Package"
+                            fullWidth
+                            value={selectedPkgId}
+                            onChange={(e) => setSelectedPkgId(e.target.value)}
+                            SelectProps={{ native: true }}
+                            InputLabelProps={{ shrink: true }}
+                        >
+                            <option value="">-- Select a Package --</option>
+                            {packages.map((pkg) => (
+                                <option key={pkg.id} value={pkg.id}>
+                                    {pkg.name} (${pkg.monthlyPrice}/mo)
+                                </option>
+                            ))}
+                        </TextField>
+
+                        <TextField
+                            select
+                            label="Payment Cycle"
+                            fullWidth
+                            value={selectedCycle}
+                            onChange={(e) => setSelectedCycle(e.target.value)}
+                            SelectProps={{ native: true }}
+                            InputLabelProps={{ shrink: true }}
+                        >
+                            <option value="monthly">Monthly</option>
+                            <option value="three_months">3 Months</option>
+                            <option value="yearly">Yearly</option>
+                        </TextField>
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setAddSubDialogOpen(false)}>Cancel</Button>
+                    <Button
+                        onClick={handleAddSubscription}
+                        variant="contained"
+                        disabled={!selectedPkgId}
+                    >
+                        Add Subscription
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             {/* Delete Confirmation Dialog */}
             <Dialog
                 open={deleteDialogOpen}
@@ -413,6 +631,114 @@ export default function CustomerManagement() {
                     <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
                     <Button onClick={handleConfirmDelete} color="error" variant="contained">
                         Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Edit Subscription Dialog */}
+            <Dialog
+                open={editSubDialogOpen}
+                onClose={() => setEditSubDialogOpen(false)}
+            >
+                <DialogTitle>Edit Subscription</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 300 }}>
+                        <TextField
+                            select
+                            label="Package"
+                            fullWidth
+                            value={selectedPkgId}
+                            onChange={(e) => setSelectedPkgId(e.target.value)}
+                            SelectProps={{ native: true }}
+                            InputLabelProps={{ shrink: true }}
+                        >
+                            {packages.map((pkg) => (
+                                <option key={pkg.id} value={pkg.id}>
+                                    {pkg.name} (${pkg.monthlyPrice}/mo)
+                                </option>
+                            ))}
+                        </TextField>
+
+                        <TextField
+                            select
+                            label="Payment Cycle"
+                            fullWidth
+                            value={selectedCycle}
+                            onChange={(e) => setSelectedCycle(e.target.value)}
+                            SelectProps={{ native: true }}
+                            InputLabelProps={{ shrink: true }}
+                        >
+                            <option value="monthly">Monthly</option>
+                            <option value="three_months">3 Months</option>
+                            <option value="yearly">Yearly</option>
+                        </TextField>
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setEditSubDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleEditSubscription} variant="contained" color="primary">
+                        Save Changes
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Record Payment Dialog */}
+            <Dialog
+                open={recordPaymentDialogOpen}
+                onClose={() => setRecordPaymentDialogOpen(false)}
+            >
+                <DialogTitle>Record Payment</DialogTitle>
+                <DialogContent>
+                    {selectedPayment && (
+                        <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 300 }}>
+                            <Card variant="outlined" sx={{ bgcolor: 'grey.50' }}>
+                                <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                                    <Grid container spacing={1}>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Base Amount</Typography>
+                                            <Typography variant="body2">${Number(selectedPayment.totalAmount).toFixed(2)}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary" sx={{ color: 'error.main' }}>Penalty</Typography>
+                                            <Typography variant="body2" sx={{ color: 'error.main' }}>+${Number(selectedPayment.penaltyAmount).toFixed(2)}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Already Paid</Typography>
+                                            <Typography variant="body2">-${Number(selectedPayment.paidAmount).toFixed(2)}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold' }}>Total Pending</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                                ${Number(selectedPayment.pendingAmount).toFixed(2)}
+                                            </Typography>
+                                        </Grid>
+                                    </Grid>
+                                </CardContent>
+                            </Card>
+
+                            <TextField
+                                label="Amount to Pay"
+                                fullWidth
+                                type="number"
+                                value={paymentAmount}
+                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                                }}
+                                helperText={`Remaining after this: $${Math.max(0, Number(selectedPayment.pendingAmount) - Number(paymentAmount)).toFixed(2)}`}
+                            />
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setRecordPaymentDialogOpen(false)}>Cancel</Button>
+                    <Button
+                        onClick={handleRecordPayment}
+                        variant="contained"
+                        color="success"
+                        disabled={!paymentAmount || Number(paymentAmount) <= 0}
+                    >
+                        Record Payment
                     </Button>
                 </DialogActions>
             </Dialog>

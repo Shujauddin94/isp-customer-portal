@@ -13,11 +13,13 @@ import {
 import WifiIcon from '@mui/icons-material/Wifi';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import PeopleIcon from '@mui/icons-material/People';
+import SettingsIcon from '@mui/icons-material/Settings';
 import CustomerForm from './components/CustomerForm';
 import PackageSelection from './components/PackageSelection';
 import PaymentPlan from './components/PaymentPlan';
 import SubscriptionSummary from './components/SubscriptionSummary';
 import CustomerManagement from './components/CustomerManagement';
+import PackageManager from './components/PackageManager';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -105,6 +107,7 @@ export default function Home() {
           >
             <Tab icon={<PersonAddIcon />} label="New Subscription" />
             <Tab icon={<PeopleIcon />} label="Customer Management" />
+            <Tab icon={<SettingsIcon />} label="Package Management" />
           </Tabs>
 
           <TabPanel value={activeTab} index={0}>
@@ -139,6 +142,10 @@ export default function Home() {
 
           <TabPanel value={activeTab} index={1}>
             <CustomerManagement key={refreshKey} />
+          </TabPanel>
+
+          <TabPanel value={activeTab} index={2}>
+            <PackageManager />
           </TabPanel>
         </Paper>
       </Container>
