@@ -33,7 +33,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import ErrorIcon from '@mui/icons-material/Error';
 import EditIcon from '@mui/icons-material/Edit';
-import { api, Customer, Payment, Package } from '../../lib/api';
+import { api, Customer, Payment, Package, Subscription } from '../../lib/api';
 import { format } from 'date-fns';
 
 export default function CustomerManagement() {
