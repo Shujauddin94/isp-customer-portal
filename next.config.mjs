@@ -5,7 +5,7 @@ const nextConfig = {
         return [
             {
                 source: '/api/:path*',
-                destination: 'http://localhost:4000/:path*',
+                destination: 'https://isp-backend-api-git-main-shuja-uddin-sufis-projects.vercel.app/:path*',
             },
         ];
     },
