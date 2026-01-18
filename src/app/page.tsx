@@ -9,8 +9,18 @@ import {
   Tabs,
   Tab,
   Paper,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  IconButton,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import WifiIcon from '@mui/icons-material/Wifi';
+import MenuIcon from '@mui/icons-material/Menu';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import PeopleIcon from '@mui/icons-material/People';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -43,10 +53,26 @@ export default function Home() {
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
   const [paymentCycle, setPaymentCycle] = useState<string>('monthly');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
     if (newValue === 0) {
+      handleReset();
+    }
+  };
+
+  const handleMobileNavClick = (index: number) => {
+    setActiveTab(index);
+    setMobileOpen(false);
+    if (index === 0) {
       handleReset();
     }
   };
@@ -79,22 +105,79 @@ export default function Home() {
     setPaymentCycle('monthly');
   };
 
+  const getPageTitle = () => {
+    if (activeTab === 0) return 'New Subscription';
+    if (activeTab === 1) return 'Customer Management';
+    if (activeTab === 2) return 'Package Management';
+    return 'SwiftConnect WiFi';
+  };
+
+  const drawer = (
+    <Box onClick={handleDrawerToggle} sx={{ textAlign: 'center' }}>
+      <Typography variant="h6" sx={{ my: 2 }}>
+        SwiftConnect
+      </Typography>
+      <List>
+        {[
+          { text: 'New Subscription', icon: <PersonAddIcon /> },
+          { text: 'Customer Management', icon: <PeopleIcon /> },
+          { text: 'Package Management', icon: <SettingsIcon /> },
+        ].map((item, index) => (
+          <ListItem key={item.text} disablePadding>
+            <ListItemButton onClick={() => handleMobileNavClick(index)} selected={activeTab === index}>
+              <ListItemIcon>
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText primary={item.text} />
+            </ListItemButton>
+          </ListItem>
+        ))}
+      </List>
+    </Box>
+  );
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
       <AppBar position="static" elevation={2}>
         <Toolbar>
-          <WifiIcon sx={{ mr: 2, fontSize: 32 }} />
+          <IconButton
+            color="inherit"
+            aria-label="open drawer"
+            edge="start"
+            onClick={handleDrawerToggle}
+            sx={{ mr: 2, display: { sm: 'none' } }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <WifiIcon sx={{ mr: 2, fontSize: 32, display: { xs: 'none', sm: 'block' } }} />
           <Box>
             <Typography variant="h6" component="div">
-              SwiftConnect WiFi
+              {isMobile ? getPageTitle() : 'SwiftConnect WiFi'}
             </Typography>
-            <Typography variant="caption" sx={{ opacity: 0.9 }}>
+            <Typography variant="caption" sx={{ opacity: 0.9, display: { xs: 'none', sm: 'block' } }}>
               WiFi Services Management System
             </Typography>
           </Box>
         </Toolbar>
       </AppBar>
+
+      <nav>
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{
+            keepMounted: true, // Better open performance on mobile.
+          }}
+          sx={{
+            display: { xs: 'block', sm: 'none' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 240 },
+          }}
+        >
+          {drawer}
+        </Drawer>
+      </nav>
 
       {/* Main Content */}
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
@@ -103,7 +186,7 @@ export default function Home() {
             value={activeTab}
             onChange={handleTabChange}
             centered
-            sx={{ borderBottom: 1, borderColor: 'divider' }}
+            sx={{ borderBottom: 1, borderColor: 'divider', display: { xs: 'none', sm: 'flex' } }}
           >
             <Tab icon={<PersonAddIcon />} label="New Subscription" />
             <Tab icon={<PeopleIcon />} label="Customer Management" />
