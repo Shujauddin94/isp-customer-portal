@@ -22,16 +22,27 @@ import {
     InputAdornment,
     Switch,
     FormControlLabel,
+    useTheme,
+    useMediaQuery,
+    CircularProgress,
+    CardHeader,
+    CardActions,
+    Chip,
+    Divider,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { api, Package } from '../../lib/api';
 
 export default function PackageManager() {
     const [packages, setPackages] = useState<Package[]>([]);
     const [open, setOpen] = useState(false);
     const [selectedPkg, setSelectedPkg] = useState<Partial<Package> | null>(null);
+    const [loading, setLoading] = useState(true);
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     useEffect(() => {
         loadPackages();
@@ -39,10 +50,13 @@ export default function PackageManager() {
 
     const loadPackages = async () => {
         try {
+            setLoading(true);
             const response = await api.getPackages();
             setPackages(response.data);
         } catch (error) {
             console.error('Error loading packages:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -93,43 +107,92 @@ export default function PackageManager() {
                 </Button>
             </Box>
 
-            <TableContainer component={Card}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>Plan Name</TableCell>
-                            <TableCell>Speed</TableCell>
-                            <TableCell align="right">Monthly</TableCell>
-                            <TableCell align="right">3 Months</TableCell>
-                            <TableCell align="right">Yearly</TableCell>
-                            <TableCell align="center">Popular</TableCell>
-                            <TableCell align="center">Actions</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {packages.map((pkg) => (
-                            <TableRow key={pkg.id}>
-                                <TableCell sx={{ fontWeight: 'bold' }}>{pkg.name}</TableCell>
-                                <TableCell>{pkg.speed}</TableCell>
-                                <TableCell align="right">${pkg.monthlyPrice}</TableCell>
-                                <TableCell align="right">${pkg.threeMonthsPrice}</TableCell>
-                                <TableCell align="right">${pkg.yearlyPrice}</TableCell>
-                                <TableCell align="center">
-                                    {pkg.isPopular ? '✅' : '-'}
-                                </TableCell>
-                                <TableCell align="center">
+            {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                    <CircularProgress />
+                </Box>
+            ) : isMobile ? (
+                <Grid container spacing={2}>
+                    {packages.map((pkg) => (
+                        <Grid item xs={12} key={pkg.id}>
+                            <Card>
+                                <CardHeader
+                                    title={
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Typography variant="h6">{pkg.name}</Typography>
+                                            {pkg.isPopular && <Chip label="Popular" color="success" size="small" icon={<CheckCircleIcon />} />}
+                                        </Box>
+                                    }
+                                    subheader={`Speed: ${pkg.speed}`}
+                                />
+                                <CardContent>
+                                    <Grid container spacing={1}>
+                                        <Grid item xs={4}>
+                                            <Typography variant="caption" color="text.secondary">Monthly</Typography>
+                                            <Typography variant="body2" fontWeight="bold">${pkg.monthlyPrice}</Typography>
+                                        </Grid>
+                                        <Grid item xs={4}>
+                                            <Typography variant="caption" color="text.secondary">3 Months</Typography>
+                                            <Typography variant="body2" fontWeight="bold">${pkg.threeMonthsPrice}</Typography>
+                                        </Grid>
+                                        <Grid item xs={4}>
+                                            <Typography variant="caption" color="text.secondary">Yearly</Typography>
+                                            <Typography variant="body2" fontWeight="bold">${pkg.yearlyPrice}</Typography>
+                                        </Grid>
+                                    </Grid>
+                                </CardContent>
+                                <Divider />
+                                <CardActions sx={{ justifyContent: 'flex-end' }}>
                                     <IconButton size="small" color="primary" onClick={() => handleOpen(pkg)}>
                                         <EditIcon />
                                     </IconButton>
                                     <IconButton size="small" color="error" onClick={() => handleDelete(pkg.id)}>
                                         <DeleteIcon />
                                     </IconButton>
-                                </TableCell>
+                                </CardActions>
+                            </Card>
+                        </Grid>
+                    ))}
+                </Grid>
+            ) : (
+                <TableContainer component={Card}>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>Plan Name</TableCell>
+                                <TableCell>Speed</TableCell>
+                                <TableCell align="right">Monthly</TableCell>
+                                <TableCell align="right">3 Months</TableCell>
+                                <TableCell align="right">Yearly</TableCell>
+                                <TableCell align="center">Popular</TableCell>
+                                <TableCell align="center">Actions</TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                        </TableHead>
+                        <TableBody>
+                            {packages.map((pkg) => (
+                                <TableRow key={pkg.id}>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>{pkg.name}</TableCell>
+                                    <TableCell>{pkg.speed}</TableCell>
+                                    <TableCell align="right">${pkg.monthlyPrice}</TableCell>
+                                    <TableCell align="right">${pkg.threeMonthsPrice}</TableCell>
+                                    <TableCell align="right">${pkg.yearlyPrice}</TableCell>
+                                    <TableCell align="center">
+                                        {pkg.isPopular ? '✅' : '-'}
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        <IconButton size="small" color="primary" onClick={() => handleOpen(pkg)}>
+                                            <EditIcon />
+                                        </IconButton>
+                                        <IconButton size="small" color="error" onClick={() => handleDelete(pkg.id)}>
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            )}
 
             <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>{selectedPkg?.id ? 'Edit Package' : 'Add New Package'}</DialogTitle>

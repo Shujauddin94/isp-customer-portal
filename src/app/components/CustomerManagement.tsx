@@ -25,6 +25,10 @@ import {
     ListItem,
     ListItemText,
     Divider,
+    useTheme,
+    useMediaQuery,
+    CircularProgress,
+    CardActions,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -38,6 +42,9 @@ import { format } from 'date-fns';
 
 export default function CustomerManagement() {
     const [customers, setCustomers] = useState<Customer[]>([]);
+    const [loading, setLoading] = useState(true);
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -71,10 +78,13 @@ export default function CustomerManagement() {
 
     const loadCustomers = async () => {
         try {
+            setLoading(true);
             const response = await api.getCustomers();
             setCustomers(response.data);
         } catch (error) {
             console.error('Error loading customers:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -270,91 +280,148 @@ export default function CustomerManagement() {
                         sx={{ mb: 3 }}
                     />
 
-                    <TableContainer>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Customer</TableCell>
-                                    <TableCell>Mobile</TableCell>
-                                    <TableCell align="center">Subscriptions</TableCell>
-                                    <TableCell align="center">Status</TableCell>
-                                    <TableCell align="center">Next Payment</TableCell>
-                                    <TableCell align="right">Amount Due</TableCell>
-                                    <TableCell align="center">Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {filteredCustomers.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} align="center">
-                                            <Typography color="text.secondary">
-                                                {searchTerm ? 'No customers found' : 'No customers yet'}
-                                            </Typography>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    filteredCustomers.map((customer) => {
-                                        const status = getCustomerStatus(customer);
-                                        const totalDue = getTotalDue(customer);
-
-                                        return (
-                                            <TableRow key={customer.id} hover>
-                                                <TableCell>
-                                                    <Box>
-                                                        <Typography variant="body1">{customer.fullName}</Typography>
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {customer.email}
-                                                        </Typography>
-                                                    </Box>
-                                                </TableCell>
-                                                <TableCell>{customer.mobileNumber}</TableCell>
-                                                <TableCell align="center">
-                                                    <Chip
-                                                        label={customer.subscriptions?.length || 0}
-                                                        size="small"
-                                                        variant="outlined"
-                                                    />
-                                                </TableCell>
-                                                <TableCell align="center">
+                    {loading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                            <CircularProgress />
+                        </Box>
+                    ) : isMobile ? (
+                        <Box>
+                            {filteredCustomers.length === 0 ? (
+                                <Typography color="text.secondary" align="center">
+                                    {searchTerm ? 'No customers found' : 'No customers yet'}
+                                </Typography>
+                            ) : (
+                                filteredCustomers.map((customer) => {
+                                    const status = getCustomerStatus(customer);
+                                    const totalDue = getTotalDue(customer);
+                                    return (
+                                        <Card key={customer.id} sx={{ mb: 2 }}>
+                                            <CardContent>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                    <Typography variant="h6">{customer.fullName}</Typography>
                                                     <Chip label={status.label} color={status.color} size="small" />
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <Typography variant="body2">
-                                                        {customer.subscriptions?.[0]?.nextDueDate
-                                                            ? format(new Date(customer.subscriptions[0].nextDueDate), 'MMM dd, HH:mm:ss')
-                                                            : '-'}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    <Typography
-                                                        color={totalDue > 0 ? 'error.main' : 'success.main'}
-                                                    >
-                                                        ${Number(totalDue).toFixed(2)}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="primary"
-                                                        onClick={() => handleView(customer)}
-                                                    >
-                                                        <VisibilityIcon />
-                                                    </IconButton>
-                                                    <IconButton
-                                                        size="small"
-                                                        color="error"
-                                                        onClick={() => handleDeleteClick(customer)}
-                                                    >
-                                                        <DeleteIcon />
-                                                    </IconButton>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                                </Box>
+                                                <Typography variant="body2" color="text.secondary" gutterBottom>
+                                                    {customer.email}
+                                                </Typography>
+                                                <Grid container spacing={1} sx={{ mt: 1 }}>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="caption" color="text.secondary">Mobile</Typography>
+                                                        <Typography variant="body2">{customer.mobileNumber}</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="caption" color="text.secondary">Due</Typography>
+                                                        <Typography variant="body2" color={totalDue > 0 ? 'error.main' : 'success.main'} fontWeight="bold">
+                                                            ${Number(totalDue).toFixed(2)}
+                                                        </Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="caption" color="text.secondary">Subs</Typography>
+                                                        <Typography variant="body2">{customer.subscriptions?.length || 0}</Typography>
+                                                    </Grid>
+                                                </Grid>
+                                            </CardContent>
+                                            <Divider />
+                                            <CardActions sx={{ justifyContent: 'flex-end' }}>
+                                                <IconButton color="primary" onClick={() => handleView(customer)}>
+                                                    <VisibilityIcon />
+                                                </IconButton>
+                                                <IconButton color="error" onClick={() => handleDeleteClick(customer)}>
+                                                    <DeleteIcon />
+                                                </IconButton>
+                                            </CardActions>
+                                        </Card>
+                                    );
+                                })
+                            )}
+                        </Box>
+                    ) : (
+                        <TableContainer>
+                            <Table>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell>Customer</TableCell>
+                                        <TableCell>Mobile</TableCell>
+                                        <TableCell align="center">Subscriptions</TableCell>
+                                        <TableCell align="center">Status</TableCell>
+                                        <TableCell align="center">Next Payment</TableCell>
+                                        <TableCell align="right">Amount Due</TableCell>
+                                        <TableCell align="center">Actions</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {filteredCustomers.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} align="center">
+                                                <Typography color="text.secondary">
+                                                    {searchTerm ? 'No customers found' : 'No customers yet'}
+                                                </Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        filteredCustomers.map((customer) => {
+                                            const status = getCustomerStatus(customer);
+                                            const totalDue = getTotalDue(customer);
+
+                                            return (
+                                                <TableRow key={customer.id} hover>
+                                                    <TableCell>
+                                                        <Box>
+                                                            <Typography variant="body1">{customer.fullName}</Typography>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                {customer.email}
+                                                            </Typography>
+                                                        </Box>
+                                                    </TableCell>
+                                                    <TableCell>{customer.mobileNumber}</TableCell>
+                                                    <TableCell align="center">
+                                                        <Chip
+                                                            label={customer.subscriptions?.length || 0}
+                                                            size="small"
+                                                            variant="outlined"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Chip label={status.label} color={status.color} size="small" />
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Typography variant="body2">
+                                                            {customer.subscriptions?.[0]?.nextDueDate
+                                                                ? format(new Date(customer.subscriptions[0].nextDueDate), 'MMM dd, HH:mm:ss')
+                                                                : '-'}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        <Typography
+                                                            color={totalDue > 0 ? 'error.main' : 'success.main'}
+                                                        >
+                                                            ${Number(totalDue).toFixed(2)}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <IconButton
+                                                            size="small"
+                                                            color="primary"
+                                                            onClick={() => handleView(customer)}
+                                                        >
+                                                            <VisibilityIcon />
+                                                        </IconButton>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            onClick={() => handleDeleteClick(customer)}
+                                                        >
+                                                            <DeleteIcon />
+                                                        </IconButton>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    )}
                 </CardContent>
             </Card>
 
@@ -364,6 +431,7 @@ export default function CustomerManagement() {
                 onClose={() => setDialogOpen(false)}
                 maxWidth="md"
                 fullWidth
+                fullScreen={isMobile}
             >
                 <DialogTitle>Customer Details</DialogTitle>
                 <DialogContent>
